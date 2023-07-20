@@ -86,7 +86,6 @@ def findInstance(path, instances=None):
 
     print(Fore.RED + 'Could not find instance for ' + str(path) + Style.RESET_ALL)
 
-
 # Collecting occurrences, the path is the assembly / sub assembly chain
 occurrences = {}
 for occurrence in root['occurrences']:
@@ -102,8 +101,7 @@ for occurrence in root['occurrences']:
 
 def getOccurrence(path):
     return occurrences[tuple(path)]
-
-
+    
 # Assignations are pieces that will be in the same link. Note that this is only for top-level
 # item of the path (all sub assemblies and parts in assemblies are naturally in the same link as
 # the parent), but other parts that can be connected with mates in top assemblies are then assigned to
@@ -168,7 +166,10 @@ for feature in features:
             limits = None
             if data['mateType'] == 'REVOLUTE' or data['mateType'] == 'CYLINDRICAL':
                 jointType = 'revolute'
-
+                if 'wheel' in parts or 'continuous' in parts:
+                    jointType = 'continuous'
+                else:
+                    jointType = 'revolute'
                 if not config['ignoreLimits']:
                     limits = getLimits(jointType, data['name'])
             elif data['mateType'] == 'SLIDER':
@@ -250,9 +251,12 @@ for feature in features:
 
             assignParts(child, child)
             assignParts(parent, parent)
+#        else:
+#            assignParts(child, parent)
 
 print(Fore.GREEN + Style.BRIGHT + '* Found total ' +
       str(len(relations))+' DOFs' + Style.RESET_ALL)
+
 
 # If we have no DOF
 if len(relations) == 0:
@@ -308,6 +312,9 @@ while changed:
                     connectParts(occurrenceA, assignations[occurrenceB])
                     changed = True
 
+
+
+
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
 # 2. Scan for orphaned parts (if you add something floating with no mate to anything)
@@ -356,3 +363,5 @@ def collect(id):
     return part
 
 tree = collect(trunk)
+print('Tree :')
+print(tree)

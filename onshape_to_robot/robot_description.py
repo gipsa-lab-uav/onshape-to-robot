@@ -391,7 +391,7 @@ class RobotSDF(RobotDescription):
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(
                         self.meshDir+'/'+filename, self.maxSTLSize)
-                self.addSTL(np.identity(4), filename, color, self._link_name, 'visual')
+                self.addSTL(np.identity(4), filename, color, self._link_name, node)
 
         self.append('<inertial>')
         self.append('<pose frame="'+self._link_name +
@@ -435,10 +435,11 @@ class RobotSDF(RobotDescription):
         return m
 
     def addSTL(self, matrix, stl, color, name, node='visual'):
-        self.append('<'+node+' name="'+name+'_visual">')
+        self.append('<'+node+' name="'+name+'_'+node+'">')
         self.append(pose(matrix))
         self.append('<geometry>')
-        self.append('<mesh><uri>file://'+stl+'</uri></mesh>')
+        #self.append('<mesh><uri>file://'+stl+'</uri></mesh>')
+        self.append(f'<mesh><uri>model://{self.robotFolder}/{stl}</uri></mesh>')
         self.append('</geometry>')
         if node == 'visual':
             self.append(self.material(color))
@@ -471,7 +472,7 @@ class RobotSDF(RobotDescription):
                     if self.shouldMergeSTLs(entry):
                         self.mergeSTL(stl, matrix, color, mass, entry)
                     else:
-                        self.addSTL(matrix, stl, color, name, entry)
+                        self.addSTL(matrix, os.path.basename(stl), color, name, entry)
                 else:
                     # Inserting pure shapes in the URDF model
                     k = 0

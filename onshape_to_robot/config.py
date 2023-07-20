@@ -3,6 +3,7 @@ import sys
 import os
 import commentjson as json
 from colorama import Fore, Back, Style
+from pathlib import Path
 
 config = {}
 
@@ -52,6 +53,8 @@ config['outputFormat'] = configGet('outputFormat', 'urdf')
 config['useFixedLinks'] = configGet('useFixedLinks', False)
 config['configuration'] = configGet('configuration', 'default')
 config['ignoreLimits'] = configGet('ignoreLimits', False)
+
+config['robotFolder'] = Path(robot).name
 
 # Using OpenSCAD for simplified geometry
 config['useScads'] = configGet('useScads', True)
