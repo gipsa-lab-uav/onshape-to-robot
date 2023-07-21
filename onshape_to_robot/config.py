@@ -103,7 +103,7 @@ else:
 if additionalFileName == '':
     config['additionalXML'] = ''
 else:
-    with open(robot + additionalFileName, "r", encoding="utf-8") as stream:
+    with open(robot + '/' + additionalFileName, "r", encoding="utf-8") as stream:
         config['additionalXML'] = stream.read()
 
 

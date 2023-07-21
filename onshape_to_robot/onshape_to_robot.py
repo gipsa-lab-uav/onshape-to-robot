@@ -205,7 +205,7 @@ def main():
         for occurrence in occurrences.values():
             if occurrence['assignation'] == tree['id'] and occurrence['instance']['type'] == 'Part':
                 addPart(occurrence, matrix)
-        robot.endLink()
+        robot.endLink( config['useScads'], config['pureShapeDilatation'])
 
         # Adding the frames (linkage is relative to parent)
         if tree['id'] in frames:

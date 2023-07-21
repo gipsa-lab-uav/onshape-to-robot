@@ -3,7 +3,7 @@ import os
 import math
 import uuid
 from . import stl_combine
-
+from . import csg
 
 def rotationMatrixToEulerAngles(R):
     sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
@@ -204,7 +204,7 @@ class RobotURDF(RobotDescription):
             self.addDummyBaseLink = False
         self.append('<link name="'+name+'">')
 
-    def endLink(self):
+    def endLink(self, useScads=False, pureShapeDilatation=0.):
         mass, com, inertia = self.linkDynamics()
 
         for node in ['visual', 'collision']:
@@ -219,8 +219,38 @@ class RobotURDF(RobotDescription):
                     self._mesh[node], self.meshDir+'/'+filename)
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(self.meshDir+'/'+filename, self.maxSTLSize)
-                self.addSTL(np.identity(4), filename, color, self._link_name, node)
 
+                shapes = None
+                if useScads:
+                    scadFile = self.meshDir+'/'+self._link_name+'_'+node+'.scad'
+                    if os.path.exists(scadFile):
+                        shapes = csg.process(scadFile, pureShapeDilatation)
+                if shapes is None:
+                    self.addSTL(np.identity(4), filename, color, self._link_name, node)
+                else:
+                    self.append('<!-- Shapes for '+self._link_name+' -->')
+                    for shape in shapes:
+                        self.append('<'+node+'>')
+                        self.append(origin(shape['transform']))
+                        self.append('<geometry>')
+                        if shape['type'] == 'cube':
+                            self.append('<box size="%.20g %.20g %.20g" />' %
+                                        tuple(shape['parameters']))
+                        if shape['type'] == 'cylinder':
+                            self.append(
+                                '<cylinder length="%.20g" radius="%.20g" />' % tuple(shape['parameters']))
+                        if shape['type'] == 'sphere':
+                            self.append('<sphere radius="%.20g" />' %
+                                        shape['parameters'])
+                        self.append('</geometry>')
+
+                        if node == 'visual':
+                            self.append('<material name="'+self._link_name+'_material">')
+                            self.append('<color rgba="%.20g %.20g %.20g 1.0"/>' %
+                                        (color[0], color[1], color[2]))
+                            self.append('</material>')
+                        self.append('</'+node+'>')
+        
         self.append('<inertial>')
         self.append('<origin xyz="%.20g %.20g %.20g" rpy="0 0 0"/>' %
                     (com[0], com[1], com[2]))
@@ -233,6 +263,15 @@ class RobotURDF(RobotDescription):
             self.append(
                 '<visual><geometry><box size="0 0 0" /></geometry></visual>')
 
+
+        # Insert additional xml file specificaly to this link
+        try:
+            with open(self.meshDir+self._link_name+'_urdf.xml', "r", encoding="utf-8") as stream:
+                self.append(stream.read())
+        except:
+            pass
+
+        
         self.append('</link>')
         self.append('')
 
@@ -379,19 +418,52 @@ class RobotSDF(RobotDescription):
         self.append('<link name="'+name+'">')
         self.append(pose(matrix, name))
 
-    def endLink(self):
+    def endLink(self, useScads=False, pureShapeDilatation=0.):
         mass, com, inertia = self.linkDynamics()
 
         for node in ['visual', 'collision']:
             if self._mesh[node] is not None:
-                color = self._color / self._color_mass
+                if node == 'visual' and self._color_mass > 0:
+                    color = self._color / self._color_mass
+                else:
+                    color = [0.5, 0.5, 0.5]
                 filename = self._link_name+'_'+node+'.stl'
                 stl_combine.save_mesh(
                     self._mesh[node], self.meshDir+'/'+filename)
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(
                         self.meshDir+'/'+filename, self.maxSTLSize)
-                self.addSTL(np.identity(4), filename, color, self._link_name, node)
+
+                shapes = None
+                if useScads:
+                    scadFile = self.meshDir+self._link_name+'_'+node+'.scad'
+                    if os.path.exists(scadFile):
+                        shapes = csg.process(scadFile, pureShapeDilatation)
+                if shapes is None:
+                    self.addSTL(np.identity(4), filename, color, self._link_name, node)
+                else:
+                    k = 0
+                    self.append('<!-- Shapes for '+self._link_name+'_'+node+' -->')
+                    for shape in shapes:
+                        k += 1
+                        self.append('<'+node+' name="'+ self._link_name +
+                                    '_'+node+'_'+str(k)+'">')
+                        self.append(pose(shape['transform']))
+                        self.append('<geometry>')
+                        if shape['type'] == 'cube':
+                            self.append('<box><size>%.20g %.20g %.20g</size></box>' %
+                                        tuple(shape['parameters']))
+                        if shape['type'] == 'cylinder':
+                            self.append(
+                                '<cylinder><length>%.20g</length><radius>%.20g</radius></cylinder>' % tuple(shape['parameters']))
+                        if shape['type'] == 'sphere':
+                            self.append(
+                                '<sphere><radius>%.20g</radius></sphere>' % shape['parameters'])
+                        self.append('</geometry>')
+
+                        if node == 'visual':
+                            self.append(self.material(color))
+                        self.append('</'+node+'>')
 
         self.append('<inertial>')
         self.append('<pose frame="'+self._link_name +
@@ -401,9 +473,17 @@ class RobotSDF(RobotDescription):
                     (inertia[0, 0], inertia[0, 1], inertia[0, 2], inertia[1, 1], inertia[1, 2], inertia[2, 2]))
         self.append('</inertial>')
 
+        # Insert additional xml file specificaly to this link
         if self.useFixedLinks:
             self.append(
                 '<visual><geometry><box><size>0 0 0</size></box></geometry></visual>')
+
+        try:
+            with open(self.meshDir+self._link_name+'_sdf.xml', "r", encoding="utf-8") as stream:
+                self.append(stream.read())
+        except:
+            pass
+        
 
         self.append('</link>')
         self.append('')
